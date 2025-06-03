@@ -1,0 +1,25 @@
+[
+  {
+    "test_name": "Generate SQL for BigQuery",
+    "agent_name": "QueryCoordinator_SQLGeneratorAgent",
+    "method_name": "call",
+    "method_input": {
+      "query": "How many customers in 'users' table?",
+      "context": {
+        "data_source_type": "bigquery",
+        "user_grouping": "my_dataset",
+        "table_schemas": ["CREATE TABLE my_dataset.users (id INT64, name STRING)"],
+        "column_schemas": ["my_dataset.users.id: User ID", "my_dataset.users.name: User Name"],
+        "known_good_queries": ["SELECT COUNT(*) FROM my_dataset.orders; -- Total orders"]
+      },
+      "chat_history": []
+    },
+    "expected_output": {
+      "sql_query": "SELECT COUNT(*) FROM my_dataset.users;"
+    },
+    "output_matcher": {
+      "type": "exact_match_json_key_values",
+      "keys": ["sql_query"]
+    }
+  }
+]

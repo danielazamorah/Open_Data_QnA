@@ -1,0 +1,52 @@
+{
+  "eval_set_name": "Basic End-to-End Flow Evaluation",
+  "agent_name": "QueryCoordinatorAgent",
+  "eval_examples": [
+    {
+      "example_name": "Simple count query - BigQuery",
+      "inputs": {
+        "query": "How many users are in the customers table?",
+        "session_id": "eval_session_001",
+        "user_grouping": "sales_bq_dataset",
+        "data_source_type": "bigquery"
+      },
+      "expected_outputs": {
+        "response_text": "The query returned no results.",
+        "generated_sql": "SELECT COUNT(*) FROM sales_bq_dataset.customers;"
+      },
+      "output_matchers": [
+        {
+          "output_key": "response_text",
+          "matcher_type": "substring_match"
+        },
+        {
+          "output_key": "generated_sql",
+          "matcher_type": "exact_match"
+        }
+      ]
+    },
+    {
+      "example_name": "Simple query - PostgreSQL",
+      "inputs": {
+        "query": "List all products.",
+        "session_id": "eval_session_002",
+        "user_grouping": "inventory_pg_schema",
+        "data_source_type": "cloudsql_postgres"
+      },
+      "expected_outputs": {
+        "response_text": "The query returned no results.",
+        "generated_sql": "SELECT * FROM inventory_pg_schema.products;"
+      },
+      "output_matchers": [
+         {
+          "output_key": "response_text",
+          "matcher_type": "substring_match"
+        },
+        {
+          "output_key": "generated_sql",
+          "matcher_type": "exact_match"
+        }
+      ]
+    }
+  ]
+}

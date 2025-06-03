@@ -1,0 +1,55 @@
+[
+  {
+    "test_name": "Simple query, no history",
+    "agent_name": "QueryCoordinator_QueryUnderstandingAgent",
+    "method_name": "call",
+    "method_input": {
+      "query": "How many products are there?",
+      "chat_history": []
+    },
+    "expected_output": {
+      "rewritten_query": "How many products are there?",
+      "intent": "sql_generation"
+    },
+    "output_matcher": {
+      "type": "exact_match"
+    }
+  },
+  {
+    "test_name": "Query with chat history context",
+    "agent_name": "QueryCoordinator_QueryUnderstandingAgent",
+    "method_name": "call",
+    "method_input": {
+      "query": "What about for electronics?",
+      "chat_history": [
+        {"role": "user", "content": "Show me total sales last month."},
+        {"role": "assistant", "content": "Total sales last month were $10,000."}
+      ]
+    },
+    "expected_output": {
+      "rewritten_query": "Show me total sales last month for electronics?",
+      "intent": "sql_generation"
+    },
+    "output_matcher": {
+      "type": "exact_match_json_key_values",
+      "keys": ["rewritten_query", "intent"]
+    }
+  },
+  {
+    "test_name": "Greeting intent",
+    "agent_name": "QueryCoordinator_QueryUnderstandingAgent",
+    "method_name": "call",
+    "method_input": {
+      "query": "Hello there",
+      "chat_history": []
+    },
+    "expected_output": {
+      "rewritten_query": "Hello there",
+      "intent": "greeting"
+    },
+    "output_matcher": {
+      "type": "exact_match_json_key_values",
+      "keys": ["intent"]
+    }
+  }
+]
