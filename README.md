@@ -41,6 +41,272 @@ Open Data QnA enables a conversational approach to interacting with your data. A
 
 It is built on a modular design and currently supports the following components: 
 
+## 🧬 System Architecture (ADK-based Refactor)
+
+This section outlines the architecture of the Open Data QnA system after its ongoing refactoring towards the Google Agent Development Kit (ADK). The goal is to create a modular, scalable, and robust solution for natural language querying of BigQuery and PostgreSQL data, deployable on Vertex AI Agent Engine.
+
+The system processes a user's natural language query through a pipeline of specialized ADK agents:
+
+```mermaid
+graph TD
+    A[User Query] --> B(QueryCoordinatorAgent);
+    B --> C{QueryUnderstandingAgent};
+    C --> D{RAGContextAgent};
+    D --> E{SQLGeneratorAgent};
+    E --> F{SQLValidatorAgent};
+    F -- Valid SQL --> G{DataExecutionAgent};
+    G --> H{ResponseGeneratorAgent};
+    H --> I[Natural Language Response];
+
+    subgraph "Core ADK Agents"
+        B; C; D; E; F; G; H;
+    end
+
+    J[Vector Store (Simulated)] <--> D;
+    K[Database (BigQuery/PostgreSQL - Simulated)] <--> G;
+    L[Persistent Memory (Firestore - Simulated)] <--> B;
+```
+
+
+
+
+### Query Flow Overview
+
+1.  **Input**: The user submits a natural language query.
+2.  **Coordination**: The  receives the query and orchestrates the entire process. It manages the flow of data between other agents and interacts with persistent memory.
+3.  **Understanding**: The  processes the raw query. It leverages an LLM to:
+    *   Rewrite the query for clarity and to incorporate context from chat history (if available).
+    *   Determine the user's intent (e.g., SQL generation, greeting).
+4.  **Context Retrieval (RAG)**: If the intent is SQL generation, the  is invoked. It uses a (currently simulated)  to:
+    *   Fetch relevant table schemas and column descriptions.
+    *   Retrieve known good SQL queries (KGQs) that are similar to the user's query.
+    *   Determine the  (BigQuery/PostgreSQL) based on the user's selected data grouping.
+5.  **SQL Generation**: The  takes the (rewritten) query, the RAG context, and chat history. It uses an LLM with a specialized prompt (currently a simplified placeholder) to generate the SQL query specific to the target database type.
+6.  **SQL Validation**: The  receives the generated SQL and RAG context. It uses an LLM to:
+    *   Check the SQL for syntax and semantic errors against the provided schemas.
+    *   (Future) Potentially suggest corrections. For now, it returns validity status and notes.
+7.  **Data Execution**: If the SQL is deemed valid, the  is called. It uses a (currently simulated) database-specific tool ( or ) to:
+    *   Execute the SQL query against the target database.
+    *   Return the query results or any execution errors.
+8.  **Response Generation**: The  takes the original query, the executed SQL, the query results, and chat history. It uses an LLM to:
+    *   Formulate a user-friendly, natural language answer based on the retrieved data.
+    *   Handle cases where the query returned no results or an error.
+9.  **Output**: The  returns the final natural language response, generated SQL, and potentially the raw query results.
+
+### Core ADK Agent Roles
+
+*   ****: The central orchestrator. It initializes and calls all other agents in sequence, manages chat history loading and saving via the , and formats the final output.
+*   ****: Responsible for initial query analysis, rewriting for clarity (using chat history), and basic intent detection.
+*   ****: Uses  (simulated) to fetch database schemas, column descriptions, and known good queries (KGQs) to provide context for SQL generation. It also helps determine the .
+*   ****: Generates the SQL query using an LLM, guided by the user's query, RAG context, chat history, and (placeholder) database-specific prompts.
+*   ****: Validates the generated SQL for correctness using an LLM and schema information.
+*   ****: Uses database-specific tools (simulated , ) to execute the validated SQL query.
+*   ****: Generates a natural language response from the SQL query results, considering the original user query and chat history.
+
+### Persistent Memory
+
+*   The  integrates with a  (currently simulated with an in-memory dictionary).
+*   This tool is responsible for saving and loading conversation turns, including user queries, intermediate agent outputs (summarized), generated SQL, query results (summarized), and final agent responses.
+*   This persisted history is used by agents like  and  to maintain context in multi-turn conversations.
+
+### UI Support Features (Backend)
+
+*   **Streaming Responses**: The  is designed to support streaming output from the LLM. The  can request this stream but currently accumulates it into a full response before returning. This lays the groundwork for future end-to-end streaming to a UI.
+*   **Agent Request Interruption**: Conceptual notes have been added to placeholder tool implementations (e.g., , ) to mark where logic for checking interruption flags could be added for long-running operations. Actual interruption mechanisms would depend on the serving framework.
+
+## 🚀 Running the Example (ADK-based Refactor)
+
+This section provides instructions on how to set up and run the current ADK-based refactored version of the Open Data QnA system. Please note that many components are currently using **simulated/placeholder logic** (e.g., for LLM calls, vector store interactions, database execution, and Firestore memory).
+
+### Prerequisites
+
+*   **Python**: Python 3.10 or higher is recommended.
+*   **pip**: Python package installer, usually comes with Python.
+*   **Git**: For cloning the repository.
+*   **Google Cloud SDK (Optional for current simulated run)**: While not strictly required to run the current version with simulated components, it will be necessary for future integrations with actual Google Cloud services (like Vertex AI, BigQuery, Firestore, Vector Search). You can install it from [here](https://cloud.google.com/sdk/docs/install).
+*   **ADK CLI (Google Agent Development Kit CLI)**: This is essential for running local tests and evaluations. Installation instructions for ADK are typically provided as part of its internal documentation or setup guide. For now, assume it's installed and available in your PATH.
+
+### Environment Variables
+
+For the current simulated version, no specific environment variables are strictly required to run the basic agent flow if you are executing it via a Python script that correctly sets up paths. However, for real cloud service integration, you would typically need to set:
+*   : Path to your service account key JSON file.
+*   : Your Google Cloud Project ID.
+*   Other service-specific variables (e.g., database connection strings, vector store IDs).
+
+If you intend to run the ADK CLI commands, ensure your environment is authenticated with Google Cloud ().
+
+### Installation
+
+1.  **Clone the Repository (if you haven't already):**
+    ```bash
+    git clone https://github.com/GoogleCloudPlatform/Open_Data_QnA.git
+    cd Open_Data_QnA
+    ```
+
+2.  **Navigate to the ADK application directory:**
+    ```bash
+    cd adk_open_data_qna
+    ```
+
+3.  **Create a Virtual Environment (Recommended):**
+    ```bash
+    python3 -m venv .venv
+    source .venv/bin/activate  # On Windows use: .venv\Scriptsctivate
+    ```
+
+4.  **Install Dependencies:**
+    The required Python packages for the ADK application are listed in .
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+### Configuration
+
+The current version uses placeholder logic and configurations:
+*   **LLM Prompts**: Simplified prompts for various agents (query understanding, SQL generation, validation, response generation) are currently hardcoded as dictionaries (, , etc.) directly within . In a production system, these would be externalized (e.g., to YAML files).
+*   **Tool Logic**: Tools like , , , and  use in-memory simulations and return dummy data.
+*   **LLM Models**: Agents are currently configured to use a default (placeholder) Gemini model () via  in .
+
+No specific configuration files need to be modified to run the simulated version. When integrating with actual cloud services, configuration for API keys, project IDs, database names, vector store endpoints, etc., would typically be managed via environment variables or dedicated configuration files loaded by the application.
+
+### Running the Main Agent (Conceptual Example)
+
+Since there isn't a deployed ADK server endpoint yet, you can run the main  programmatically from a Python script.
+
+1.  Create a Python script (e.g., ) in the root of the repository (i.e., alongside the  directory, so imports work easily or ensure  is in ).
+
+    ```python
+    # run_adk_agent.py
+    import asyncio
+    import uuid
+    import os
+    import sys
+
+    # Ensure the adk_open_data_qna directory is in the Python path
+    # This might be needed if running from the root of the Open_Data_QnA repo
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    adk_app_dir = os.path.join(current_dir, "adk_open_data_qna")
+    if adk_app_dir not in sys.path:
+        sys.path.insert(0, adk_app_dir)
+
+    # It's also common to set PYTHONPATH=. when in the adk_open_data_qna directory
+
+    from agents.core_agents import QueryCoordinatorAgent, DEFAULT_LLM_CONFIG
+
+    async def main_async_runner(): # Renamed to avoid conflict if main() is used below
+        # Initialize the LLM config (placeholder, real config would be more complex)
+        # For now, DEFAULT_LLM_CONFIG is used by agents.
+
+        # Instantiate the main coordinator agent
+        # You can give it a name for observation purposes if desired.
+        coordinator = QueryCoordinatorAgent(name="MyOpenDataQnACoordinator")
+
+        session_id = str(uuid.uuid4())
+        print(f"Starting conversation with session_id: {session_id}")
+
+        queries = [
+            "How many customers are there in the 'sales_europe' dataset?",
+            "What were the total sales last month for product X?",
+            "Hello there!" # Example of a non-SQL query
+        ]
+
+        for user_query in queries:
+            print(f"
+--- User Query: {user_query} ---")
+
+            # Call the coordinator agent
+            # enable_streaming can be True or False
+            response_data = coordinator.call(
+                query=user_query,
+                session_id=session_id,
+                user_grouping="sales_europe", # Example user_grouping
+                data_source_type="bigquery",  # Example data_source_type
+                enable_streaming=False
+            )
+
+            print(f"Agent Response Text: {response_data.get('response_text')}")
+            if response_data.get('generated_sql'):
+                print(f"Generated SQL:
+{response_data.get('generated_sql')}")
+            if response_data.get('query_results'):
+                print(f"Query Results (simulated): {response_data.get('query_results')}")
+
+            # The coordinator.call method internally uses the memory tool to save the turn
+            # if session_id is provided.
+
+        print(f"
+Conversation with session_id: {session_id} ended.")
+        # You can inspect the simulated Firestore DB in the memory tool if needed for debugging:
+        # print("
+Simulated Firestore DB state:")
+        # print(coordinator.memory_tool._simulated_firestore_db.get(session_id, {}).get('conversation_history', []))
+
+    if __name__ == "__main__":
+        # The ADK LlmAgent.call method can be async and uses an event loop.
+        # Even if our top-level QueryCoordinatorAgent.call is synchronous,
+        # it's safer to run within an asyncio event loop context if sub-agents use async features.
+        try:
+            asyncio.run(main_async_runner())
+        except KeyboardInterrupt:
+            print("Exiting...")
+        except RuntimeError as e:
+            if "There is no current event loop in thread" in str(e):
+                print("No event loop, creating a new one.")
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(main_async_runner())
+                loop.close()
+            else:
+                raise
+    ```
+
+2.  Run this script from the main  directory:
+    ```bash
+    python run_adk_agent.py
+    ```
+    (Ensure your virtual environment is activated if you created one, and  is in  or the script handles  as above).
+
+### Running ADK Local Tests and Evaluations
+
+The ADK CLI provides tools for testing agent methods and evaluating end-to-end agent behavior.
+
+*   **Prerequisites for ADK CLI:**
+    *   Ensure the ADK CLI is installed and configured.
+    *   Your current working directory should typically be where the  module can be found (e.g., the root  directory, or  itself if  is set up).
+    *   The agent path provided to the CLI should correctly point to the Python file containing the agent class, and you must specify the class name.
+
+*   **Running  files (Unit/Method Tests):**
+    Use the  command. For example, to test the  (which is a sub-agent of  and named accordingly):
+    ```bash
+    adk test adk_open_data_qna/tests/test_query_understanding_agent.test.json --agent-path adk_open_data_qna/agents/core_agents.py QueryCoordinatorAgent_QueryUnderstandingAgent
+    ```
+    To test the :
+    ```bash
+    adk test adk_open_data_qna/tests/test_sql_generator_agent.test.json --agent-path adk_open_data_qna/agents/core_agents.py QueryCoordinatorAgent_SQLGeneratorAgent
+    ```
+    *(Note: The  and agent class name should correspond to how the ADK CLI loads and instantiates agents. If sub-agents are not directly instantiable or testable this way, tests might need to target the  and check intermediate outputs, or test utility functions directly.)*
+    For the current setup, testing sub-agents directly via ADK CLI might require them to be served or registered in a specific way not yet implemented. A more common ADK pattern is to test the main callable agent () and verify parts of its complex output if unit testing sub-agent outputs directly is needed.
+
+*   **Running  files (End-to-End Evaluation):**
+    Use the  command. This typically targets your main orchestrator agent.
+    ```bash
+    adk eval adk_open_data_qna/tests/test_full_flow.evalset.json --agent-path adk_open_data_qna/agents/core_agents.py QueryCoordinatorAgent
+    ```
+
+    The ADK CLI will execute the defined test cases or evaluation examples and report on their success or failure based on the specified  and .
+
+### Expected Output (Current Simulated Version)
+
+When running the  script or ADK evaluations:
+*   You will see **console logs** from the agents, indicating the flow of execution (e.g., "QueryCoordinatorAgent received query...", "QueryUnderstandingAgent called...", "RAGContextAgent retrieved dummy context...", etc.).
+*   **Generated SQL**: For SQL-intended queries, you'll see a (currently simple, placeholder) SQL query printed.
+*   **Query Results**: These will be dummy/simulated results from the placeholder execution tools (e.g.,  or ).
+*   **Agent Response Text**: A natural language response generated by  based on the (simulated) query results. This will also be based on placeholder LLM logic.
+*   **Memory Tool Logs**: You'll see logs from  indicating saving and loading of conversation turns (simulated).
+*   **ADK Test/Eval Output**: The ADK CLI will provide a summary of tests passed/failed or evaluation metrics. Given the placeholder nature, current tests in  are designed to pass with the dummy outputs.
+
+This setup allows for iterative development and testing of the agentic logic even before full integration with live backend services.
+
 ### Database Connectors
 * **Google Cloud SQL for PostgreSQL**
 * **Google BigQuery**
